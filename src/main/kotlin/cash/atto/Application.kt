@@ -82,7 +82,7 @@ fun main(args: Array<String>) {
 
 private fun createGenesis(privateKey: AttoPrivateKey): AttoTransaction {
     val block = AttoOpenBlock(
-        version = 0u,
+        version = 0u.toAttoVersion(),
         algorithm = AttoAlgorithm.V1,
         publicKey = privateKey.toPublicKey(),
         balance = AttoAmount.MAX,

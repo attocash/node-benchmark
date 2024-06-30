@@ -39,7 +39,7 @@ class Node(
         withEnv("ATTO_DB_USER", databaseUser)
         withEnv("ATTO_DB_PASSWORD", databasePassword)
         withEnv("ATTO_PUBLIC_URI", "ws://$id:8082")
-        withEnv("ATTO_GENESIS", genesis.toByteBuffer().toHex())
+        withEnv("ATTO_GENESIS", genesis.toHex())
         if (privateKey != null) {
             withEnv("ATTO_PRIVATE_KEY", privateKey.value.toHex())
         }
