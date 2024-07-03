@@ -22,7 +22,7 @@ repositories {
 dependencies {
     val testcontainersVersion = "1.19.5"
 
-    implementation("cash.atto:commons:2.10.2")
+    implementation("cash.atto:commons:2.11.0")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("org.jetbrains.kotlin:kotlin-stdlib")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.1")

@@ -1,10 +1,10 @@
 package cash.atto.account
 
 import cash.atto.commons.*
-import cash.atto.commons.serialiazers.json.AttoJson
 import io.netty.handler.logging.LogLevel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import mu.KotlinLogging
 import reactor.core.publisher.Mono
 import reactor.netty.ByteBufFlux
@@ -70,7 +70,7 @@ class Account(
             .uri(uri)
             .responseContent()
             .asString()
-            .map { AttoJson.decodeFromString<AttoAccount>(it) }
+            .map { Json.decodeFromString<AttoAccount>(it) }
             .takeWhile { running }
             .doOnSubscribe {
                 logger.info { "$publicKey subscribed to $uri" }
@@ -90,7 +90,7 @@ class Account(
             .uri(uri)
             .responseContent()
             .asString()
-            .map { AttoJson.decodeFromString<AttoReceivable>(it) }
+            .map { Json.decodeFromString<AttoReceivable>(it) }
             .takeWhile { running }
             .doOnSubscribe {
                 logger.info { "$publicKey subscribed to $uri" }
@@ -110,12 +110,12 @@ class Account(
         lock.withLock {
             val account = accountState.value
             val (block, work) = if (account == null) {
-                val block = AttoAccount.open(representative, receivable)
-                val work = AttoWork.work(AttoNetwork.LOCAL, block.timestamp, block.publicKey)
+                val block = AttoAccount.open(representative, receivable, AttoNetwork.LOCAL)
+                val work = AttoWork.work(block)
                 block to work
             } else {
                 val block = account.receive(receivable)
-                val work = AttoWork.work(AttoNetwork.LOCAL, block.timestamp, block.previous)
+                val work = AttoWork.work(block)
                 block to work
             }
 
@@ -136,7 +136,7 @@ class Account(
             val transaction = AttoTransaction(
                 block = block,
                 signature = privateKey.sign(block.hash),
-                work = AttoWork.work(AttoNetwork.LOCAL, block.timestamp, block.previous)
+                work = AttoWork.work(block)
             )
             publish(transaction)
         }
@@ -148,7 +148,7 @@ class Account(
             return
         }
         val uri = "http://localhost:${port}/transactions/stream"
-        val json = AttoJson.encodeToString(transaction)
+        val json = Json.encodeToString(transaction)
 
         httpClient
             .post()
@@ -156,7 +156,7 @@ class Account(
             .send(ByteBufFlux.fromString(Mono.just(json)))
             .responseContent()
             .asString()
-            .map { AttoJson.decodeFromString<AttoTransaction>(it) }
+            .map { Json.decodeFromString<AttoTransaction>(it) }
             .doOnRequest { logger.info { "Sending to $uri $json" } }
             .doOnError { e -> logger.error(e) { "Error sending to $uri $json" } }
             .timeout(Duration.ofSeconds(10))

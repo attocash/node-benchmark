@@ -17,9 +17,9 @@ class Application
 private val logger = KotlinLogging.logger {}
 
 fun main(args: Array<String>) {
-    val votingNodeCount = 4U
-    val nonVotingNodeCount = 6U
-    val accountCount = 100U
+    val votingNodeCount = 3U
+    val nonVotingNodeCount = 0U
+    val accountCount = 200U
     val timeoutInSeconds = 60
 
     val genesisPrivateKey = AttoPrivateKey.generate()
@@ -32,7 +32,7 @@ fun main(args: Array<String>) {
     nodeManager.start(votingNodeCount, nonVotingNodeCount)
 
     val accountManager = AccountManager(genesisPrivateKey)
-    accountManager.start(accountCount, { nodeManager.getNonVoter() }, { nodeManager.getVoter().publicKey!! })
+    accountManager.start(accountCount, { nodeManager.getVoter() }, { nodeManager.getVoter().publicKey!! })
 
     val running = AtomicBoolean(true)
     val counter = AtomicLong(0)
@@ -40,10 +40,6 @@ fun main(args: Array<String>) {
     accountManager.accounts.forEach {
         Thread.startVirtualThread {
             while (running.get()) {
-                if (it.attoAccount == null) {
-                    Thread.sleep(100)
-                    continue
-                }
                 var destinationAccount = accountManager.accounts.random()
                 while (destinationAccount == it) {
                     destinationAccount = accountManager.accounts.random()
@@ -82,6 +78,7 @@ fun main(args: Array<String>) {
 
 private fun createGenesis(privateKey: AttoPrivateKey): AttoTransaction {
     val block = AttoOpenBlock(
+        network = AttoNetwork.LOCAL,
         version = 0u.toAttoVersion(),
         algorithm = AttoAlgorithm.V1,
         publicKey = privateKey.toPublicKey(),
@@ -95,6 +92,6 @@ private fun createGenesis(privateKey: AttoPrivateKey): AttoTransaction {
     return AttoTransaction(
         block = block,
         signature = privateKey.sign(block.hash),
-        work = AttoWork.work(AttoNetwork.LOCAL, block.timestamp, block.publicKey)
+        work = AttoWork.work(block)
     )
 }
