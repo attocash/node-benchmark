@@ -17,7 +17,7 @@ class Application
 private val logger = KotlinLogging.logger {}
 
 fun main(args: Array<String>) {
-    val votingNodeCount = 3U
+    val votingNodeCount = 10U
     val nonVotingNodeCount = 0U
     val accountCount = 200U
     val timeoutInSeconds = 60
@@ -31,11 +31,12 @@ fun main(args: Array<String>) {
     val nodeManager = NodeManager(genesisPrivateKey, tag, factory)
     nodeManager.start(votingNodeCount, nonVotingNodeCount)
 
+    val counter = AtomicLong(0)
+
     val accountManager = AccountManager(genesisPrivateKey)
-    accountManager.start(accountCount, { nodeManager.getVoter() }, { nodeManager.getVoter().publicKey!! })
+    accountManager.start(accountCount, { nodeManager.getVoter() }, { nodeManager.getVoter().publicKey!! }, counter)
 
     val running = AtomicBoolean(true)
-    val counter = AtomicLong(0)
 
     accountManager.accounts.forEach {
         Thread.startVirtualThread {
@@ -46,7 +47,6 @@ fun main(args: Array<String>) {
                 }
 
                 it.send(destinationAccount.publicKey)
-                counter.incrementAndGet()
             }
         }
     }
@@ -65,7 +65,7 @@ fun main(args: Array<String>) {
                 totalAmount == AttoAmount.MAX.raw
             }
     } catch (e: Exception) {
-        logger.info { "Failed to gracefully stop. Total balance is not equals the MAX" }
+        logger.error { "Failed to gracefully stop. Total balance is not equals the MAX" }
     }
 
     accountManager.close()

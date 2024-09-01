@@ -6,6 +6,7 @@ import mu.KotlinLogging
 import org.testcontainers.shaded.org.awaitility.Awaitility
 import java.math.BigDecimal
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
 
 
 class AccountManager(private val genesisPrivateKey: AttoPrivateKey) : AutoCloseable {
@@ -15,15 +16,20 @@ class AccountManager(private val genesisPrivateKey: AttoPrivateKey) : AutoClosea
     lateinit var accounts: List<Account>
         private set
 
-    fun start(accountCount: UInt, nodeProvider: () -> Node, representativeProvider: () -> AttoPublicKey) {
+    fun start(
+        accountCount: UInt,
+        nodeProvider: () -> Node,
+        representativeProvider: () -> AttoPublicKey,
+        counter: AtomicLong
+    ) {
         val accounts = mutableListOf<Account>()
 
-        genesisAccount = create(nodeProvider.invoke(), representativeProvider.invoke(), genesisPrivateKey)
+        genesisAccount = create(counter, nodeProvider.invoke(), representativeProvider.invoke(), genesisPrivateKey)
         accounts.add(genesisAccount)
 
         logger.info { "Created 1/${accountCount} accounts" }
         for ((index, _) in (2U..accountCount).withIndex()) {
-            val account = create(nodeProvider.invoke(), representativeProvider.invoke())
+            val account = create(counter, nodeProvider.invoke(), representativeProvider.invoke())
             accounts.add(account)
             logger.info { "Created ${index + 2}/${accountCount} accounts" }
         }
@@ -49,6 +55,7 @@ class AccountManager(private val genesisPrivateKey: AttoPrivateKey) : AutoClosea
     }
 
     private fun create(
+        counter: AtomicLong,
         node: Node,
         representative: AttoPublicKey,
         privateKey: AttoPrivateKey = AttoPrivateKey.generate()
@@ -56,7 +63,8 @@ class AccountManager(private val genesisPrivateKey: AttoPrivateKey) : AutoClosea
         return Account(
             port = node.httpPort,
             representative = representative,
-            privateKey = privateKey
+            privateKey = privateKey,
+            counter
         ).apply {
             start()
         }

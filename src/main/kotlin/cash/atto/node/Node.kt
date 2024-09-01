@@ -40,6 +40,7 @@ class Node(
         withEnv("ATTO_DB_PASSWORD", databasePassword)
         withEnv("ATTO_PUBLIC_URI", "ws://$id:8082")
         withEnv("ATTO_GENESIS", genesis.toHex())
+        withEnv("ATTO_CONFIRMATION_THRESHOLD", "91")
         if (privateKey != null) {
             withEnv("ATTO_PRIVATE_KEY", privateKey.value.toHex())
         }

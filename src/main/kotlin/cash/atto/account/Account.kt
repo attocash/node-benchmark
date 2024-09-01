@@ -13,6 +13,7 @@ import reactor.netty.transport.logging.AdvancedByteBufFormat
 import reactor.util.retry.Retry
 import java.time.Duration
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 import kotlin.random.Random
@@ -30,6 +31,7 @@ class Account(
     private val port: Int,
     private val representative: AttoPublicKey,
     private val privateKey: AttoPrivateKey,
+    private val counter: AtomicLong,
 ) : AutoCloseable {
     private val logger = KotlinLogging.logger {}
 
@@ -150,6 +152,8 @@ class Account(
         val uri = "http://localhost:${port}/transactions/stream"
         val json = Json.encodeToString(transaction)
 
+        val timestamp = System.currentTimeMillis()
+
         httpClient
             .post()
             .uri(uri)
@@ -158,12 +162,14 @@ class Account(
             .asString()
             .map { Json.decodeFromString<AttoTransaction>(it) }
             .doOnRequest { logger.info { "Sending to $uri $json" } }
+            .doOnComplete { logger.info { "Sent request to $uri $json in ${System.currentTimeMillis() - timestamp}ms" } }
             .doOnError { e -> logger.error(e) { "Error sending to $uri $json" } }
             .timeout(Duration.ofSeconds(10))
             .retry(9)
             .blockFirst()
 
         Thread.sleep(1_000)
+        println(counter.incrementAndGet())
     }
 
     override fun close() {
