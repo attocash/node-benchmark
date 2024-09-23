@@ -29,10 +29,13 @@ private val httpClient = HttpClient.create()
 
 class Account(
     private val port: Int,
-    private val representative: AttoPublicKey,
+    private val representativePublicKey: AttoPublicKey,
     private val privateKey: AttoPrivateKey,
     private val counter: AtomicLong,
 ) : AutoCloseable {
+    companion object {
+        val WORKER = AttoWorker.cpu()
+    }
     private val logger = KotlinLogging.logger {}
 
     val publicKey = privateKey.toPublicKey()
@@ -112,12 +115,12 @@ class Account(
         lock.withLock {
             val account = accountState.value
             val (block, work) = if (account == null) {
-                val block = AttoAccount.open(representative, receivable, AttoNetwork.LOCAL)
-                val work = AttoWork.work(block)
+                val block = AttoAccount.open(AttoAlgorithm.V1, representativePublicKey, receivable, AttoNetwork.LOCAL)
+                val work = WORKER.work(block)
                 block to work
             } else {
                 val block = account.receive(receivable)
-                val work = AttoWork.work(block)
+                val work = WORKER.work(block)
                 block to work
             }
 
@@ -138,7 +141,7 @@ class Account(
             val transaction = AttoTransaction(
                 block = block,
                 signature = privateKey.sign(block.hash),
-                work = AttoWork.work(block)
+                work = WORKER.work(block)
             )
             publish(transaction)
         }

@@ -86,12 +86,13 @@ private fun createGenesis(privateKey: AttoPrivateKey): AttoTransaction {
         timestamp = Clock.System.now(),
         sendHashAlgorithm = AttoAlgorithm.V1,
         sendHash = AttoHash(ByteArray(32)),
-        representative = privateKey.toPublicKey(),
+        representativeAlgorithm = AttoAlgorithm.V1,
+        representativePublicKey = privateKey.toPublicKey(),
     )
 
     return AttoTransaction(
         block = block,
         signature = privateKey.sign(block.hash),
-        work = AttoWork.work(block)
+        work = AttoWorker.cpu().use { it.work(block) }
     )
 }

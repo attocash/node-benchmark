@@ -62,7 +62,7 @@ class AccountManager(private val genesisPrivateKey: AttoPrivateKey) : AutoClosea
     ): Account {
         return Account(
             port = node.httpPort,
-            representative = representative,
+            representativePublicKey = representative,
             privateKey = privateKey,
             counter
         ).apply {
