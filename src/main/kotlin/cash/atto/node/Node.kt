@@ -3,6 +3,7 @@ package cash.atto.node
 import cash.atto.commons.AttoPrivateKey
 import cash.atto.commons.AttoTransaction
 import cash.atto.commons.toHex
+import cash.atto.commons.toPublicKey
 import org.testcontainers.containers.GenericContainer
 import org.testcontainers.containers.Network
 import org.testcontainers.containers.wait.strategy.Wait
@@ -40,7 +41,6 @@ class Node(
         withEnv("ATTO_DB_PASSWORD", databasePassword)
         withEnv("ATTO_PUBLIC_URI", "ws://$id:8082")
         withEnv("ATTO_GENESIS", genesis.toHex())
-        withEnv("ATTO_CONFIRMATION_THRESHOLD", "91")
         if (privateKey != null) {
             withEnv("ATTO_PRIVATE_KEY", privateKey.value.toHex())
         }
@@ -50,6 +50,12 @@ class Node(
         if (defaultNodes.isNotEmpty()) {
             withEnv("ATTO_DEFAULT_NODES", defaultNodes.joinToString(separator = ","))
         }
+        withEnv("LOGGING_LEVEL_CASH_ATTO_NODE_NETWORK", "INFO")
+        withEnv("LOGGING_LEVEL_CASH_ATTO_NODE_ELECTION", "INFO")
+        withEnv("LOGGING_LEVEL_CASH_ATTO_NODE_TRANSACTION", "INFO")
+        withEnv("LOGGING_LEVEL_CASH_ATTO_NODE_VOTE", "INFO")
+        withEnv("LOGGING_LEVEL_CASH_ATTO_NODE_BOOTSTRAP", "INFO")
+        withEnv("LOGGING_LEVEL_CASH_ATTO_NODE_TRANSACTION_VALIDATION", "DEBUG")
         start()
     }
 
