@@ -31,8 +31,8 @@ class Node(
                 .withName(id)
                 .withHostName(id)
         }
-        withExposedPorts(8080)
-        waitingFor(Wait.forHttp("/transactions/${genesis.hash}"))
+        withExposedPorts(8080, 8081)
+        waitingFor(Wait.forHttp("/transactions/${genesis.hash}").forPort(8080))
         withEnv("SPRING_PROFILES_ACTIVE", "local")
         withEnv("ATTO_DB_HOST", databaseHost)
         withEnv("ATTO_DB_PORT", "3306")
