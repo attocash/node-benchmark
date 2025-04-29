@@ -5,7 +5,9 @@ import cash.atto.commons.worker.AttoWorker
 import cash.atto.commons.worker.cpu
 import kotlinx.coroutines.runBlocking
 import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
 import java.math.BigDecimal
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 class TransactionGenerator(val accountCount: UShort, val totalTransactions: UInt) {
@@ -72,10 +74,16 @@ class TransactionGenerator(val accountCount: UShort, val totalTransactions: UInt
             accountMap[thisAccountPrivateKey.toPublicKey()] = PrivateKeyAccount(thisAccountPrivateKey, null)
 
             val sendTransaction =
-                send(genesisPrivateKey.toPublicKey(), thisAccountPrivateKey.toPublicKey(), initialAmount)
+                send(
+                    genesisPrivateKey.toPublicKey(),
+                    thisAccountPrivateKey.toPublicKey(),
+                    initialAmount,
+                    Clock.System.now()
+                ).toTransaction()
             initialTransactions.add(sendTransaction)
 
-            val receiveTransaction = receive((sendTransaction.block as AttoSendBlock).toReceivable())
+            val receiveTransaction =
+                receive((sendTransaction.block as AttoSendBlock).toReceivable(), Clock.System.now()).toTransaction()
             initialTransactions.add(receiveTransaction)
         }
 
@@ -90,26 +98,25 @@ class TransactionGenerator(val accountCount: UShort, val totalTransactions: UInt
         val receiverPublicKey = AttoPublicKey(ByteArray(32))
         val keys = accountMap.values.map { it.privateKey }
 
-        val transactionMap = mutableMapOf<AttoPublicKey, MutableList<AttoTransaction>>()
+        val blockMap = mutableMapOf<AttoPublicKey, MutableList<AttoBlock>>()
         keys.forEach { key ->
-            transactionMap[key.toPublicKey()] = mutableListOf()
+            blockMap[key.toPublicKey()] = mutableListOf()
         }
 
-        val total = totalTransactions.toInt()
-
+        val initialTimestamp = Clock.System.now()
         for (i in 0 until totalTransactions.toInt()) {
             val keyIndex = i % keys.size
             val privateKey = keys[keyIndex]
             val publicKey = privateKey.toPublicKey()
-            val tx = send(publicKey, receiverPublicKey, AttoAmount(1UL))
-            transactionMap[publicKey]!!.add(tx)
-
-            if ((i + 1) % 1000 == 0 || i == total - 1) {
-                val completed = i + 1
-                val remaining = total - completed
-                println("Prepared $completed transactions for ${transactionMap.size} accounts, $remaining remaining")
-            }
+            val timestamp = initialTimestamp.plus((i % totalTransactions.toInt()).milliseconds)
+            val tx = send(publicKey, receiverPublicKey, AttoAmount(1UL), timestamp)
+            blockMap[publicKey]!!.add(tx)
         }
+        println("Generated ${blockMap.values.sumOf { it.size }} blocks.")
+
+
+        // TODO: Add progression
+        val transactionMap = blockMap.map { it.key to it.value.map { it.toTransaction() } }.toMap()
 
         println("Generated ${transactionMap.values.sumOf { it.size }} transactions.")
 
@@ -120,66 +127,68 @@ class TransactionGenerator(val accountCount: UShort, val totalTransactions: UInt
     private fun send(
         senderPublicKey: AttoPublicKey,
         receiverPublicKey: AttoPublicKey,
-        amount: AttoAmount
-    ): AttoTransaction {
-        Thread.sleep(1) // make sure there's a difference of 1ms per transaction
-
+        amount: AttoAmount,
+        timestamp: Instant,
+    ): AttoSendBlock {
         val privateKeyAccount = accountMap[senderPublicKey]!!
-        val privateKey = privateKeyAccount.privateKey
         val account = privateKeyAccount.account!!
 
-        val (block, updatedAccount) = account.send(AttoAlgorithm.V1, receiverPublicKey, amount)
-
-        val transaction = AttoTransaction(
-            block = block,
-            signature = runBlocking { privateKey.sign(block.hash) },
-            work = runBlocking { worker.work(block) }
-        )
+        val (block, updatedAccount) = account.send(AttoAlgorithm.V1, receiverPublicKey, amount, timestamp)
 
         accountMap[senderPublicKey] = privateKeyAccount.update(updatedAccount)
 
-        return transaction
+        return block
     }
 
     private fun receive(
         receivable: AttoReceivable,
-    ): AttoTransaction {
+        timestamp: Instant,
+    ): AttoBlock {
         val privateKeyAccount = accountMap[receivable.receiverPublicKey]!!
-        val privateKey = privateKeyAccount.privateKey
         val account = privateKeyAccount.account
 
-        val (transaction, updatedAccount) = if (account == null) {
+        val (block, updatedAccount) = if (account == null) {
             val (openBlock, updatedAccount) = AttoAccount.open(
                 representativeAlgorithm = AttoAlgorithm.V1,
                 representativePublicKey = genesisPrivateKey.toPublicKey(),
                 receivable = receivable,
-                network = AttoNetwork.LOCAL
+                network = AttoNetwork.LOCAL,
+                timestamp
             )
 
-            val transaction = AttoTransaction(
-                block = openBlock,
-                signature = runBlocking { privateKey.sign(openBlock.hash) },
-                work = runBlocking { worker.work(openBlock) }
-            )
-
-            transaction to updatedAccount
+            openBlock to updatedAccount
         } else {
             val (receiveBlock, updatedAccount) = account.receive(
                 receivable = receivable,
+                timestamp,
             )
 
-            val openTransaction = AttoTransaction(
-                block = receiveBlock,
-                signature = runBlocking { privateKey.sign(receiveBlock.hash) },
-                work = runBlocking { worker.work(receiveBlock) }
-            )
-
-            openTransaction to updatedAccount
+            receiveBlock to updatedAccount
         }
 
         accountMap[receivable.receiverPublicKey] = privateKeyAccount.update(updatedAccount)
 
 
-        return transaction
+        return block
+    }
+
+
+    private fun AttoBlock.toTransaction(): AttoTransaction {
+        val block = this
+        val work = when (block) {
+            is AttoOpenBlock -> runBlocking { worker.work(block) }
+            is AttoChangeBlock -> runBlocking { worker.work(block) }
+            is AttoReceiveBlock -> runBlocking { worker.work(block) }
+            is AttoSendBlock -> runBlocking { worker.work(block) }
+        }
+
+        val privateKeyAccount = accountMap[block.publicKey]!!
+        val privateKey = privateKeyAccount.privateKey
+
+        return AttoTransaction(
+            block = this,
+            signature = runBlocking { privateKey.sign(block.hash) },
+            work = work
+        )
     }
 }
